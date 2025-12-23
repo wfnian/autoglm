@@ -15,14 +15,6 @@
     <a href="https://mp.weixin.qq.com/s/wRp22dmRVF23ySEiATiWIQ" target="_blank">AutoGLM 实战派</a> 开发者激励活动火热进行中，跑通、二创即可瓜分数万元现金奖池！成果提交 👉 <a href="https://zhipu-ai.feishu.cn/share/base/form/shrcnE3ZuPD5tlOyVJ7d5Wtir8c?from=navigation" target="_blank">入口</a>
 </p>
 
-## 懒人版快速安装
-
-你可以使用Claude Code，配置 [GLM Coding Plan](https://bigmodel.cn/glm-coding) 后，输入以下提示词，快速部署本项目。
-
-```
-访问文档，为我安装 AutoGLM
-https://raw.githubusercontent.com/zai-org/Open-AutoGLM/refs/heads/main/README.md
-```
 
 ## 项目介绍
 
@@ -34,14 +26,7 @@ ADB 调试能力，可通过 WiFi 或网络连接设备，实现灵活的远程�
 > ⚠️
 > 本项目仅供研究和学习使用。严禁用于非法获取信息、干扰系统或任何违法活动。请仔细审阅 [使用条款](resources/privacy_policy.txt)。
 
-## 模型下载地址
 
-| Model                         | Download Links                                                                                                                                                         |
-|-------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| AutoGLM-Phone-9B              | [🤗 Hugging Face](https://huggingface.co/zai-org/AutoGLM-Phone-9B)<br>[🤖 ModelScope](https://modelscope.cn/models/ZhipuAI/AutoGLM-Phone-9B)                           |
-| AutoGLM-Phone-9B-Multilingual | [🤗 Hugging Face](https://huggingface.co/zai-org/AutoGLM-Phone-9B-Multilingual)<br>[🤖 ModelScope](https://modelscope.cn/models/ZhipuAI/AutoGLM-Phone-9B-Multilingual) |
-
-其中，`AutoGLM-Phone-9B` 是针对中文手机应用优化的模型，而 `AutoGLM-Phone-9B-Multilingual` 支持英语场景，适用于包含英文等其他语言内容的应用。
 
 ## Android 环境准备
 
