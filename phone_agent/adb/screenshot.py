@@ -76,13 +76,79 @@ def get_screenshot(device_id: str | None = None, timeout: int = 10) -> Screensho
         # Cleanup
         os.remove(temp_path)
 
-        return Screenshot(
-            base64_data=base64_data, width=width, height=height, is_sensitive=False
-        )
+        return Screenshot(base64_data=base64_data, width=width, height=height, is_sensitive=False)
 
     except Exception as e:
         print(f"Screenshot error: {e}")
         return _create_fallback_screenshot(is_sensitive=False)
+
+
+def get_ui_xml(device_id: str | None = None, timeout: int = 20) -> str | None:
+    """
+    Dump current UI hierarchy XML from the connected Android device.
+
+    Args:
+        device_id: Optional ADB device ID for multi-device setups.
+        timeout: Timeout in seconds for dump operations.
+
+    Returns:
+        XML string if successful, otherwise None.
+
+    Note:
+        On some sensitive pages, UIAutomator dump may fail or return empty content.
+    """
+    temp_path = os.path.join(tempfile.gettempdir(), f"ui_{uuid.uuid4()}.xml")
+    adb_prefix = _get_adb_prefix(device_id)
+
+    try:
+        print("Dumping UI hierarchy...")
+        # Dump UI hierarchy on device
+        result = subprocess.run(
+            adb_prefix + ["shell", "uiautomator", "dump", "/sdcard/ui.xml"],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+
+        # output = result.stdout + result.stderr
+        # print(f"UI Automator dump output: {output}")
+        # 替换原来的 if "ERROR" ... 部分
+        if result.returncode != 0:
+            print(f"[Dump failed] returncode={result.returncode}, stderr={result.stderr}")
+            return None
+
+        # 即使 stderr 有 Exception，只要 returncode == 0 且提示 "dumped to"，就认为成功
+        if "dumped to:" not in result.stdout:
+            print(f"[Unexpected output] stdout={result.stdout}")
+            return None
+
+        # Pull XML to local temp path
+        subprocess.run(
+            adb_prefix + ["pull", "/sdcard/ui.xml", temp_path],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        if not os.path.exists(temp_path):
+            print("UI XML file not found after pull.")
+            return None
+
+        # Read XML content
+        with open(temp_path, "r", encoding="utf-8") as f:
+            xml_content = f.read()
+
+        # Cleanup
+        os.remove(temp_path)
+
+        # Basic sanity check
+        if "<hierarchy" not in xml_content:
+            return None
+
+        return xml_content
+
+    except subprocess.TimeoutExpired:
+        return None
 
 
 def _get_adb_prefix(device_id: str | None) -> list:

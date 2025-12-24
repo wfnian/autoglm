@@ -142,6 +142,8 @@ class PhoneAgent:
         # Capture current screen state
         device_factory = get_device_factory()
         screenshot = device_factory.get_screenshot(self.agent_config.device_id)
+        ui_xml = device_factory.get_ui_xml(self.agent_config.device_id)
+        # print(f"UI XML: {ui_xml}")
         current_app = device_factory.get_current_app(self.agent_config.device_id)
 
         # Build messages
@@ -153,9 +155,17 @@ class PhoneAgent:
             screen_info = MessageBuilder.build_screen_info(current_app)
             text_content = f"{user_prompt}\n\n{screen_info}"
 
+            # 截图方式1: 原来的方式
+            # self._context.append(
+            #     MessageBuilder.create_user_message(
+            #         text=text_content, image_base64=screenshot.base64_data
+            #     )
+            # )
+
+            # 截图方式2: 包含UI XML
             self._context.append(
-                MessageBuilder.create_user_message(
-                    text=text_content, image_base64=screenshot.base64_data
+                MessageBuilder.create_user_message_by_xml(
+                    text=text_content, xml_content=ui_xml
                 )
             )
         else:

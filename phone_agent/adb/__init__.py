@@ -23,11 +23,12 @@ from phone_agent.adb.input import (
     restore_keyboard,
     type_text,
 )
-from phone_agent.adb.screenshot import get_screenshot
+from phone_agent.adb.screenshot import get_screenshot, get_ui_xml
 
 __all__ = [
     # Screenshot
     "get_screenshot",
+    "get_ui_xml",
     # Input
     "type_text",
     "clear_text",

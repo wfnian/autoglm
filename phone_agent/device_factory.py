@@ -48,6 +48,10 @@ class DeviceFactory:
     def get_screenshot(self, device_id: str | None = None, timeout: int = 10):
         """Get screenshot from device."""
         return self.module.get_screenshot(device_id, timeout)
+    
+    def get_ui_xml(self, device_id: str | None = None, timeout: int = 10):
+        """Get ui xml from device."""
+        return self.module.get_ui_xml(device_id, timeout)
 
     def get_current_app(self, device_id: str | None = None) -> str:
         """Get current app name."""

@@ -92,13 +92,15 @@ def get_screenshot(device_id: str | None = None, timeout: int = 10) -> Screensho
         # Cleanup
         os.remove(temp_path)
 
-        return Screenshot(
-            base64_data=base64_data, width=width, height=height, is_sensitive=False
-        )
+        return Screenshot(base64_data=base64_data, width=width, height=height, is_sensitive=False)
 
     except Exception as e:
         print(f"Screenshot error: {e}")
         return _create_fallback_screenshot(is_sensitive=False)
+
+
+def get_ui_xml(device_id: str | None = None, timeout: int = 10) -> str:
+    return ""
 
 
 def _get_hdc_prefix(device_id: str | None) -> list:

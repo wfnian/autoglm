@@ -153,12 +153,10 @@ class ModelClient:
         print("-" * 50)
         if time_to_first_token is not None:
             print(
-                f"{get_message('time_to_first_token', lang)}: {time_to_first_token:.3f}s"
-            )
+                f"{get_message('time_to_first_token', lang)}: {time_to_first_token:.3f}s")
         if time_to_thinking_end is not None:
             print(
-                f"{get_message('time_to_thinking_end', lang)}:        {time_to_thinking_end:.3f}s"
-            )
+                f"{get_message('time_to_thinking_end', lang)}:        {time_to_thinking_end:.3f}s")
         print(
             f"{get_message('total_inference_time', lang)}:          {total_time:.3f}s"
         )
@@ -225,9 +223,7 @@ class MessageBuilder:
         return {"role": "system", "content": content}
 
     @staticmethod
-    def create_user_message(
-        text: str, image_base64: str | None = None
-    ) -> dict[str, Any]:
+    def create_user_message(text: str, image_base64: str | None = None) -> dict[str, Any]:
         """
         Create a user message with optional image.
 
@@ -253,6 +249,35 @@ class MessageBuilder:
         return {"role": "user", "content": content}
 
     @staticmethod
+    def create_user_message_by_xml(text: str, xml_content: str | None = None) -> dict[str, Any]:
+        """
+        Create a user message with optional image.
+
+        Args:
+            text: Text content.
+            xml_content: Optional xml_content.
+
+        Returns:
+            Message dictionary.
+        """
+        content = []
+
+        res = text
+
+        if xml_content:
+            # content.append(
+            #     {
+            #         "type": "text",
+            #         "text": {"ui_xml": xml_content},
+            #     }
+            # )
+            res = f"{text}\n\n<ui_xml>\n{xml_content}\n</ui_xml>"
+
+        content.append({"type": "text", "text": res})
+
+        return {"role": "user", "content": content}
+
+    @staticmethod
     def create_assistant_message(content: str) -> dict[str, Any]:
         """Create an assistant message."""
         return {"role": "assistant", "content": content}
@@ -269,9 +294,7 @@ class MessageBuilder:
             Message with images removed.
         """
         if isinstance(message.get("content"), list):
-            message["content"] = [
-                item for item in message["content"] if item.get("type") == "text"
-            ]
+            message["content"] = [item for item in message["content"] if item.get("type") == "text"]
         return message
 
     @staticmethod
