@@ -148,9 +148,7 @@ class PhoneAgent:
 
         # Build messages
         if is_first:
-            self._context.append(
-                MessageBuilder.create_system_message(self.agent_config.system_prompt)
-            )
+            self._context.append(MessageBuilder.create_system_message(self.agent_config.system_prompt))
 
             screen_info = MessageBuilder.build_screen_info(current_app)
             text_content = f"{user_prompt}\n\n{screen_info}"
@@ -163,20 +161,19 @@ class PhoneAgent:
             # )
 
             # 截图方式2: 包含UI XML
-            self._context.append(
-                MessageBuilder.create_user_message_by_xml(
-                    text=text_content, xml_content=ui_xml
-                )
-            )
+            # print(f"\033[91m{self._context}\033[0m")
+            self._context.append(MessageBuilder.create_user_message_by_xml(text=text_content, xml_content=ui_xml))
         else:
             screen_info = MessageBuilder.build_screen_info(current_app)
             text_content = f"** Screen Info **\n\n{screen_info}"
 
-            self._context.append(
-                MessageBuilder.create_user_message(
-                    text=text_content, image_base64=screenshot.base64_data
-                )
-            )
+            # self._context.append(
+            #     MessageBuilder.create_user_message(
+            #         text=text_content, image_base64=screenshot.base64_data
+            #     )
+            # )
+            
+            self._context.append(MessageBuilder.create_user_message_by_xml(text=text_content, xml_content=ui_xml))
 
         # Get model response
         try:
@@ -216,15 +213,11 @@ class PhoneAgent:
 
         # Execute action
         try:
-            result = self.action_handler.execute(
-                action, screenshot.width, screenshot.height
-            )
+            result = self.action_handler.execute(action, screenshot.width, screenshot.height)
         except Exception as e:
             if self.agent_config.verbose:
                 traceback.print_exc()
-            result = self.action_handler.execute(
-                finish(message=str(e)), screenshot.width, screenshot.height
-            )
+            result = self.action_handler.execute(finish(message=str(e)), screenshot.width, screenshot.height)
 
         # Add assistant response to context
         self._context.append(
@@ -239,9 +232,7 @@ class PhoneAgent:
         if finished and self.agent_config.verbose:
             msgs = get_messages(self.agent_config.lang)
             print("\n" + "🎉 " + "=" * 48)
-            print(
-                f"✅ {msgs['task_completed']}: {result.message or action.get('message', msgs['done'])}"
-            )
+            print(f"✅ {msgs['task_completed']}: {result.message or action.get('message', msgs['done'])}")
             print("=" * 50 + "\n")
 
         return StepResult(
