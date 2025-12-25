@@ -16,6 +16,11 @@ SYSTEM_PROMPT = (
 <think>{think}</think>
 <answer>{action}</answer>
 
+如果一个页面含有多个action可选项，（大部分情况是输入）请返回列表[]action
+例如：
+<think>此页面需要两处输入，第一处是xy坐标，第二处是xy坐标</think>
+<answer>[do(action="Tap", element=[x,y]),do(action="Tap", element=[x,y])]</answer>
+
 其中：
 - {think} 是对你为什么选择这个操作的简短推理说明。
 - {action} 是本次执行的具体操作指令，必须严格遵循下方定义的指令格式。
