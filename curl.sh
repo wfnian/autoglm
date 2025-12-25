@@ -1,1 +1,0 @@
-python main.py --base-url https://open.bigmodel.cn/api/paas/v4 --model "autoglm-phone" --apikey "" "打开行家的内网邮箱，然后给李明写一封邮件告诉他周三放假。"
