@@ -4,6 +4,8 @@ import json
 import traceback
 from dataclasses import dataclass
 from typing import Any, Callable
+import os
+import xml.etree.ElementTree as ET
 
 from phone_agent.actions import ActionHandler
 from phone_agent.actions.handler import do, finish, parse_action
@@ -133,9 +135,7 @@ class PhoneAgent:
         self._context = []
         self._step_count = 0
 
-    def _execute_step(
-        self, user_prompt: str | None = None, is_first: bool = False
-    ) -> StepResult:
+    def _execute_step(self, user_prompt: str | None = None, is_first: bool = False) -> StepResult:
         """Execute a single step of the agent loop."""
         self._step_count += 1
 
@@ -143,9 +143,10 @@ class PhoneAgent:
         device_factory = get_device_factory()
         screenshot = device_factory.get_screenshot(self.agent_config.device_id)
         ui_xml = device_factory.get_ui_xml(self.agent_config.device_id)
-        # print(f"UI XML: {ui_xml}")
+        # ui_json = self.xml_to_json(ui_xml, app_name="行家")
+        # ui_json_str = json.dumps(ui_json, ensure_ascii=False)
         current_app = device_factory.get_current_app(self.agent_config.device_id)
-
+        print(f"UI xml: {ui_xml}")
         # Build messages
         if is_first:
             self._context.append(MessageBuilder.create_system_message(self.agent_config.system_prompt))
@@ -222,7 +223,8 @@ class PhoneAgent:
         # Add assistant response to context
         self._context.append(
             MessageBuilder.create_assistant_message(
-                f"<think>{response.thinking}</think><answer>{response.action}</answer>"
+                # f"<think>{response.thinking}</think><answer>{response.action}</answer>"
+                f"{response.thinking}{response.action}"
             )
         )
 

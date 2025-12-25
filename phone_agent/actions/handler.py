@@ -133,7 +133,7 @@ class ActionHandler:
         if not element:
             return ActionResult(False, False, "No element coordinates")
 
-        x, y = self._convert_relative_to_absolute(element, width, height)
+        # x, y = self._convert_relative_to_absolute(element, width, height)
 
         # Check for sensitive operation
         if "message" in action:
@@ -145,7 +145,7 @@ class ActionHandler:
                 )
 
         device_factory = get_device_factory()
-        device_factory.tap(x, y, self.device_id)
+        device_factory.tap(element[0], element[1], self.device_id)
         return ActionResult(True, False)
 
     def _handle_type(self, action: dict, width: int, height: int) -> ActionResult:
@@ -180,11 +180,12 @@ class ActionHandler:
         if not start or not end:
             return ActionResult(False, False, "Missing swipe coordinates")
 
-        start_x, start_y = self._convert_relative_to_absolute(start, width, height)
-        end_x, end_y = self._convert_relative_to_absolute(end, width, height)
+        # start_x, start_y = self._convert_relative_to_absolute(start, width, height)
+        # end_x, end_y = self._convert_relative_to_absolute(end, width, height)
 
         device_factory = get_device_factory()
-        device_factory.swipe(start_x, start_y, end_x, end_y, device_id=self.device_id)
+        # device_factory.swipe(start_x, start_y, end_x, end_y, device_id=self.device_id)
+        device_factory.swipe(start[0], start[1], end[0], end[1], device_id=self.device_id)
         return ActionResult(True, False)
 
     def _handle_back(self, action: dict, width: int, height: int) -> ActionResult:
@@ -205,9 +206,10 @@ class ActionHandler:
         if not element:
             return ActionResult(False, False, "No element coordinates")
 
-        x, y = self._convert_relative_to_absolute(element, width, height)
+        # x, y = self._convert_relative_to_absolute(element, width, height)
         device_factory = get_device_factory()
-        device_factory.double_tap(x, y, self.device_id)
+        # device_factory.double_tap(x, y, self.device_id)
+        device_factory.double_tap(element[0], element[1], self.device_id)
         return ActionResult(True, False)
 
     def _handle_long_press(self, action: dict, width: int, height: int) -> ActionResult:
@@ -216,9 +218,10 @@ class ActionHandler:
         if not element:
             return ActionResult(False, False, "No element coordinates")
 
-        x, y = self._convert_relative_to_absolute(element, width, height)
+        # x, y = self._convert_relative_to_absolute(element, width, height)
         device_factory = get_device_factory()
-        device_factory.long_press(x, y, device_id=self.device_id)
+        # device_factory.long_press(x, y, device_id=self.device_id)
+        device_factory.long_press(element[0], element[1], device_id=self.device_id)
         return ActionResult(True, False)
 
     def _handle_wait(self, action: dict, width: int, height: int) -> ActionResult:
@@ -358,10 +361,14 @@ def parse_action(response: str) -> dict[str, Any]:
                 response = response.replace('\n', '\\n')
                 response = response.replace('\r', '\\r')
                 response = response.replace('\t', '\\t')
+                print(f"\033[93m{response}\033[0m")
+                
 
                 tree = ast.parse(response, mode="eval")
                 if not isinstance(tree.body, ast.Call):
                     raise ValueError("Expected a function call")
+
+                print(f"\033[93m{tree}\033[0m")
 
                 call = tree.body
                 # Extract keyword arguments safely
