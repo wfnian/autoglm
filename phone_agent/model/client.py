@@ -201,6 +201,7 @@ class ModelClient:
             parts = content.split("do(action=", 1)
             thinking = parts[0].strip()
             action = "do(action=" + parts[1]
+            action = action.replace("</answer>", "").strip()
             return thinking, action
 
         # Rule 3: Fallback to legacy XML tag parsing
