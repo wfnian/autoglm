@@ -142,7 +142,7 @@ class PhoneAgent:
         # Capture current screen state
         device_factory = get_device_factory()
         screenshot = device_factory.get_screenshot(self.agent_config.device_id)
-        ui_xml = device_factory.get_ui_xml(self.agent_config.device_id)
+        # ui_xml = device_factory.get_ui_xml(self.agent_config.device_id)
         # print(f"UI XML: {ui_xml}")
         current_app = device_factory.get_current_app(self.agent_config.device_id)
 
@@ -152,28 +152,29 @@ class PhoneAgent:
 
             screen_info = MessageBuilder.build_screen_info(current_app)
             text_content = f"{user_prompt}\n\n{screen_info}"
+            print(f"\033[41;92m;{text_content}\033[0m")
 
             # 截图方式1: 原来的方式
-            # self._context.append(
-            #     MessageBuilder.create_user_message(
-            #         text=text_content, image_base64=screenshot.base64_data
-            #     )
-            # )
+            self._context.append(
+                MessageBuilder.create_user_message(
+                    text=text_content, image_base64=screenshot.base64_data
+                )
+            )
 
             # 截图方式2: 包含UI XML
             # print(f"\033[91m{self._context}\033[0m")
-            self._context.append(MessageBuilder.create_user_message_by_xml(text=text_content, xml_content=ui_xml))
+            # self._context.append(MessageBuilder.create_user_message_by_xml(text=text_content, xml_content=ui_xml))
         else:
             screen_info = MessageBuilder.build_screen_info(current_app)
             text_content = f"** Screen Info **\n\n{screen_info}"
 
-            # self._context.append(
-            #     MessageBuilder.create_user_message(
-            #         text=text_content, image_base64=screenshot.base64_data
-            #     )
-            # )
+            self._context.append(
+                MessageBuilder.create_user_message(
+                    text=text_content, image_base64=screenshot.base64_data
+                )
+            )
             
-            self._context.append(MessageBuilder.create_user_message_by_xml(text=text_content, xml_content=ui_xml))
+            # self._context.append(MessageBuilder.create_user_message_by_xml(text=text_content, xml_content=ui_xml))
 
         # Get model response
         try:
