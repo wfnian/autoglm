@@ -170,7 +170,7 @@ class PhoneAgent:
         检查是否需要执行硬编码的特殊任务。
         返回 StepResult 表示已处理并结束任务；返回 None 表示不匹配，继续走大模型逻辑。
         """
-        keywords = ["发邮件", "发送邮件", "写邮件"]
+        keywords = ["发邮件", "发送邮件", "写邮件", "写一封邮件"]
         if any(kw in task for kw in keywords):
             if self.agent_config.verbose:
                 print("检测到行家发邮件相关任务，尝试执行硬编码流程...")
