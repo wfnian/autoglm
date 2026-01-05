@@ -110,6 +110,7 @@ class ModelClient:
                         # Marker found, print everything before it
                         thinking_part = buffer.split(marker, 1)[0]
                         print(thinking_part, end="", flush=True)
+                        # yield thinking_part  # Yield thinking part for streaming
                         print()  # Print newline after thinking is complete
                         in_action_phase = True
                         marker_found = True
@@ -170,6 +171,116 @@ class ModelClient:
             time_to_thinking_end=time_to_thinking_end,
             total_time=total_time,
         )
+
+    def request_stream(self, messages: list[dict[str, Any]]):
+        """
+        Send a streaming request to the model, yielding thinking parts character by character.
+        
+        This method streams the thinking part of the response and yields a special
+        'response' flag at the end with the complete ModelResponse.
+
+        Args:
+            messages: List of message dictionaries in OpenAI format.
+
+        Yields:
+            Dictionary with 'flag' and 'content' for streaming response.
+            At the end, yields {'flag': 'response', 'content': ModelResponse}
+        """
+        # Start timing
+        start_time = time.time()
+        time_to_first_token = None
+        time_to_thinking_end = None
+        
+        stream = self.client.chat.completions.create(
+            messages=messages,
+            model=self.config.model_name,
+            max_tokens=self.config.max_tokens,
+            temperature=self.config.temperature,
+            top_p=self.config.top_p,
+            frequency_penalty=self.config.frequency_penalty,
+            extra_body=self.config.extra_body,
+            stream=True,
+        )
+
+        raw_content = ""
+        buffer = ""  # Buffer to hold content that might be part of a marker
+        action_markers = ["finish(message=", "do(action="]
+        in_action_phase = False  # Track if we've entered the action phase
+        first_token_received = False
+
+        for chunk in stream:
+            if len(chunk.choices) == 0:
+                continue
+            if chunk.choices[0].delta.content is not None:
+                content = chunk.choices[0].delta.content
+                raw_content += content
+
+                # Record time to first token
+                if not first_token_received:
+                    time_to_first_token = time.time() - start_time
+                    first_token_received = True
+
+                if in_action_phase:
+                    # Already in action phase, just accumulate content
+                    continue
+
+                buffer += content
+
+                # Check if any marker is fully present in buffer
+                marker_found = False
+                for marker in action_markers:
+                    if marker in buffer:
+                        # Marker found, yield everything before it character by character
+                        thinking_part = buffer.split(marker, 1)[0]
+                        for char in thinking_part:
+                            yield {"flag": "text", "content": char}
+                        
+                        # Record time to thinking end
+                        if time_to_thinking_end is None:
+                            time_to_thinking_end = time.time() - start_time
+                            
+                        in_action_phase = True
+                        marker_found = True
+                        break
+
+                if marker_found:
+                    continue  # Continue to collect remaining content
+
+                # Check if buffer ends with a prefix of any marker
+                # If so, don't yield yet (wait for more content)
+                is_potential_marker = False
+                for marker in action_markers:
+                    for i in range(1, len(marker)):
+                        if buffer.endswith(marker[:i]):
+                            is_potential_marker = True
+                            break
+                    if is_potential_marker:
+                        break
+
+                if not is_potential_marker:
+                    # Safe to yield the buffer character by character
+                    for char in buffer:
+                        yield {"flag": "text", "content": char}
+                    buffer = ""
+
+        # Calculate total time
+        total_time = time.time() - start_time
+
+        # Parse thinking and action from response
+        thinking, action = self._parse_response(raw_content)
+
+        # Create the complete response
+        response = ModelResponse(
+            thinking=thinking,
+            action=action,
+            raw_content=raw_content,
+            time_to_first_token=time_to_first_token,
+            time_to_thinking_end=time_to_thinking_end,
+            total_time=total_time,
+        )
+        
+        # Yield the complete response as a special flag
+        yield {"flag": "response", "content": response}
 
     def _parse_response(self, content: str) -> tuple[str, str]:
         """

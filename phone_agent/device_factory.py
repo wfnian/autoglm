@@ -136,9 +136,8 @@ class DeviceFactory:
 
             return ADBConnection
         elif self.device_type == DeviceType.HDC:
-            from phone_agent.hdc import HDCConnection
-
-            return HDCConnection
+            # TODO HDC
+            pass
         else:
             raise ValueError(f"Unknown device type: {self.device_type}")
 

@@ -258,7 +258,7 @@ class ActionHandler:
     def _send_keyevent(self, keycode: str) -> None:
         """Send a keyevent to the device."""
         from phone_agent.device_factory import DeviceType, get_device_factory
-        from phone_agent.hdc.connection import _run_hdc_command
+        # from phone_agent.hdc.connection import _run_hdc_command
 
         device_factory = get_device_factory()
 
@@ -269,11 +269,12 @@ class ActionHandler:
             # Map common keycodes to HarmonyOS keyEvent codes
             # KEYCODE_ENTER (66) -> 2054 (HarmonyOS Enter key code)
             if keycode == "KEYCODE_ENTER" or keycode == "66":
-                _run_hdc_command(
-                    hdc_prefix + ["shell", "uitest", "uiInput", "keyEvent", "2054"],
-                    capture_output=True,
-                    text=True,
-                )
+                # _run_hdc_command(
+                #     hdc_prefix + ["shell", "uitest", "uiInput", "keyEvent", "2054"],
+                #     capture_output=True,
+                #     text=True,
+                # )
+                pass
             else:
                 # For other keys, try to use the numeric code directly
                 # If keycode is a string like "KEYCODE_ENTER", convert it
@@ -282,11 +283,12 @@ class ActionHandler:
                     if keycode.startswith("KEYCODE_"):
                         # For now, only handle ENTER, other keys may need mapping
                         if "ENTER" in keycode:
-                            _run_hdc_command(
-                                hdc_prefix + ["shell", "uitest", "uiInput", "keyEvent", "2054"],
-                                capture_output=True,
-                                text=True,
-                            )
+                            # _run_hdc_command(
+                            #     hdc_prefix + ["shell", "uitest", "uiInput", "keyEvent", "2054"],
+                            #     capture_output=True,
+                            #     text=True,
+                            # )
+                            pass
                         else:
                             # Fallback to ADB-style command for unsupported keys
                             subprocess.run(
@@ -296,11 +298,12 @@ class ActionHandler:
                             )
                     else:
                         # Assume it's a numeric code
-                        _run_hdc_command(
-                            hdc_prefix + ["shell", "uitest", "uiInput", "keyEvent", str(keycode)],
-                            capture_output=True,
-                            text=True,
-                        )
+                        # _run_hdc_command(
+                        #     hdc_prefix + ["shell", "uitest", "uiInput", "keyEvent", str(keycode)],
+                        #     capture_output=True,
+                        #     text=True,
+                        # )
+                        pass
                 except Exception:
                     # Fallback to ADB-style command
                     subprocess.run(
