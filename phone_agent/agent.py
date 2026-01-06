@@ -140,6 +140,28 @@ class PhoneAgent:
         # If we reach max steps, yield a finished signal
         yield {"flag": "finished", "content": "Max steps reached"}
 
+    async def run_stream_async(self, task: str):
+        """Async streaming version of :meth:`run_stream`.
+
+        This should be used by FastAPI SSE routes so the event loop can flush
+        outgoing chunks immediately.
+        """
+        self._context = []
+        self._step_count = 0
+
+        async for chunk in self._execute_step_stream_async(task, is_first=True):
+            yield chunk
+            if chunk.get("flag") == "finished":
+                return
+
+        while self._step_count < self.agent_config.max_steps:
+            async for chunk in self._execute_step_stream_async(is_first=False):
+                yield chunk
+                if chunk.get("flag") == "finished":
+                    return
+
+        yield {"flag": "finished", "content": "Max steps reached"}
+
     def step(self, task: str | None = None) -> StepResult:
         """
         Execute a single step of the agent.
@@ -363,6 +385,89 @@ class PhoneAgent:
         if finished:
             yield {"flag": "finished", "content": result.message or action.get("message", "Task completed")}
             return  # IMPORTANT: Return after sending finished signal
+
+    async def _execute_step_stream_async(
+        self, user_prompt: str | None = None, is_first: bool = False
+    ):
+        """Async version of :meth:`_execute_step_stream`.
+
+        Key difference: model streaming is done via AsyncOpenAI and `async for`,
+        so FastAPI can flush SSE chunks in real-time.
+        """
+        self._step_count += 1
+
+        device_factory = get_device_factory()
+        screenshot = device_factory.get_screenshot(self.agent_config.device_id)
+        current_app = device_factory.get_current_app(self.agent_config.device_id)
+
+        if is_first:
+            self._context.append(
+                MessageBuilder.create_system_message(self.agent_config.system_prompt)
+            )
+            screen_info = MessageBuilder.build_screen_info(current_app)
+            text_content = f"{user_prompt}\n\n{screen_info}"
+            self._context.append(
+                MessageBuilder.create_user_message(
+                    text=text_content, image_base64=screenshot.base64_data
+                )
+            )
+        else:
+            screen_info = MessageBuilder.build_screen_info(current_app)
+            text_content = f"** Screen Info **\n\n{screen_info}"
+            self._context.append(
+                MessageBuilder.create_user_message(
+                    text=text_content, image_base64=screenshot.base64_data
+                )
+            )
+
+        # Get model streaming response (async)
+        try:
+            response = None
+            async for chunk in self.model_client.request_stream_async(self._context):
+                if chunk.get("flag") == "response":
+                    response = chunk["content"]
+                else:
+                    yield chunk
+
+            if response is None:
+                yield {"flag": "error", "content": "Failed to get model response"}
+                return
+        except Exception as e:
+            if self.agent_config.verbose:
+                traceback.print_exc()
+            yield {"flag": "error", "content": f"Model error: {e}"}
+            return
+
+        # Parse action
+        try:
+            action = parse_action(response.action)
+        except ValueError:
+            action = finish(message=response.action)
+
+        # Remove image from context to save space
+        self._context[-1] = MessageBuilder.remove_images_from_message(self._context[-1])
+
+        # Execute action (blocking, but happens after thinking stream)
+        try:
+            result = self.action_handler.execute(action, screenshot.width, screenshot.height)
+        except Exception as e:
+            result = self.action_handler.execute(
+                finish(message=str(e)), screenshot.width, screenshot.height
+            )
+
+        self._context.append(
+            MessageBuilder.create_assistant_message(
+                f"<think>{response.thinking}</think><answer>{response.action}</answer>"
+            )
+        )
+
+        finished = action.get("_metadata") == "finish" or result.should_finish
+        if finished:
+            yield {
+                "flag": "finished",
+                "content": result.message or action.get("message", "Task completed"),
+            }
+            return
 
     @property
     def context(self) -> list[dict[str, Any]]:

@@ -506,24 +506,16 @@ async def agent_completions_stream(request: AgentCompletionRequest):
         
         # Execute first step with streaming
         try:
-            for chunk in agent._execute_step_stream(request.messages[0].content, is_first=True):
+            async for chunk in agent.run_stream_async(request.messages[0].content):
                 # Format as SSE
                 yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
-                
-                # Check if finished - if finished, stop immediately
+                # Yield control so Starlette can flush the chunk immediately
+                await asyncio.sleep(0)
+
                 if chunk.get("flag") == "finished":
                     return
                     
-            # Continue with subsequent steps if not finished
-            while agent.step_count < agent_config.max_steps:
-                for chunk in agent._execute_step_stream(is_first=False):
-                    yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
-                    
-                    # Check if finished - if finished, stop immediately
-                    if chunk.get("flag") == "finished":
-                        return
-                        
-            # If we reach max steps without finishing
+            # Fallback (should not reach here because run_stream_async emits finished)
             yield f'data: {{"flag": "finished", "content": "Max steps reached"}}\n\n'
                     
         except Exception as e:

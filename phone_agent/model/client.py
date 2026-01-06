@@ -1,11 +1,26 @@
-"""Model client for AI inference using OpenAI-compatible API."""
+"""Model client for AI inference using OpenAI-compatible API.
+
+NOTE ABOUT STREAMING
+--------------------
+This project exposes an SSE endpoint (FastAPI StreamingResponse). To achieve
+*true* token-by-token streaming over HTTP, the entire call chain must be
+non-blocking:
+
+- FastAPI route: async generator
+- Agent: async generator
+- Model client: async OpenAI client (AsyncOpenAI) with `async for` streaming
+
+If any layer uses a synchronous/blocking iterator, the event loop can't flush
+chunks until the blocking call returns, which looks like "wait then all output
+appears at once".
+"""
 
 import json
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from openai import OpenAI
+from openai import AsyncOpenAI, OpenAI
 
 from phone_agent.config.i18n import get_message
 
@@ -48,7 +63,11 @@ class ModelClient:
 
     def __init__(self, config: ModelConfig | None = None):
         self.config = config or ModelConfig()
+        # Keep both sync and async clients.
+        # - sync client is still used by CLI paths (request)
+        # - async client is used by SSE streaming paths to avoid blocking the event loop
         self.client = OpenAI(base_url=self.config.base_url, api_key=self.config.api_key)
+        self.async_client = AsyncOpenAI(base_url=self.config.base_url, api_key=self.config.api_key)
 
     def request(self, messages: list[dict[str, Any]]) -> ModelResponse:
         """
@@ -280,6 +299,103 @@ class ModelClient:
         )
         
         # Yield the complete response as a special flag
+        yield {"flag": "response", "content": response}
+
+    async def request_stream_async(self, messages: list[dict[str, Any]]):
+        """Async version of :meth:`request_stream`.
+
+        This is the recommended method for FastAPI/Starlette StreamingResponse.
+        It prevents blocking the event loop so SSE chunks can be flushed
+        immediately.
+
+        Yields:
+            {"flag": "text", "content": <single char>} for thinking stream
+            {"flag": "response", "content": ModelResponse} at the end
+        """
+        start_time = time.time()
+        time_to_first_token = None
+        time_to_thinking_end = None
+
+        stream = await self.async_client.chat.completions.create(
+            messages=messages,
+            model=self.config.model_name,
+            max_tokens=self.config.max_tokens,
+            temperature=self.config.temperature,
+            top_p=self.config.top_p,
+            frequency_penalty=self.config.frequency_penalty,
+            extra_body=self.config.extra_body,
+            stream=True,
+        )
+
+        raw_content = ""
+        buffer = ""
+        action_markers = ["finish(message=", "do(action="]
+        in_action_phase = False
+        first_token_received = False
+
+        async for chunk in stream:
+            if len(chunk.choices) == 0:
+                continue
+            delta = chunk.choices[0].delta
+            if delta is None or delta.content is None:
+                continue
+
+            content = delta.content
+            raw_content += content
+
+            if not first_token_received:
+                time_to_first_token = time.time() - start_time
+                first_token_received = True
+
+            if in_action_phase:
+                # Already in action phase, just accumulate remaining content
+                continue
+
+            buffer += content
+
+            marker_found = False
+            for marker in action_markers:
+                if marker in buffer:
+                    thinking_part = buffer.split(marker, 1)[0]
+                    for char in thinking_part:
+                        yield {"flag": "text", "content": char}
+
+                    if time_to_thinking_end is None:
+                        time_to_thinking_end = time.time() - start_time
+
+                    in_action_phase = True
+                    marker_found = True
+                    break
+
+            if marker_found:
+                continue
+
+            # Avoid emitting partial marker prefixes
+            is_potential_marker = False
+            for marker in action_markers:
+                for i in range(1, len(marker)):
+                    if buffer.endswith(marker[:i]):
+                        is_potential_marker = True
+                        break
+                if is_potential_marker:
+                    break
+
+            if not is_potential_marker:
+                for char in buffer:
+                    yield {"flag": "text", "content": char}
+                buffer = ""
+
+        total_time = time.time() - start_time
+        thinking, action = self._parse_response(raw_content)
+
+        response = ModelResponse(
+            thinking=thinking,
+            action=action,
+            raw_content=raw_content,
+            time_to_first_token=time_to_first_token,
+            time_to_thinking_end=time_to_thinking_end,
+            total_time=total_time,
+        )
         yield {"flag": "response", "content": response}
 
     def _parse_response(self, content: str) -> tuple[str, str]:
