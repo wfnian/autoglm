@@ -24,14 +24,9 @@ from openai import OpenAI
 
 from phone_agent import PhoneAgent
 from phone_agent.agent import AgentConfig
-from phone_agent.agent_ios import IOSAgentConfig, IOSPhoneAgent
 from phone_agent.config.apps import list_supported_apps
-from phone_agent.config.apps_harmonyos import list_supported_apps as list_harmonyos_apps
-from phone_agent.config.apps_ios import list_supported_apps as list_ios_apps
 from phone_agent.device_factory import DeviceType, get_device_factory, set_device_type
 from phone_agent.model import ModelConfig
-from phone_agent.xctest import XCTestConnection
-from phone_agent.xctest import list_devices as list_ios_devices
 
 
 def check_system_requirements(
@@ -141,8 +136,10 @@ def check_system_requirements(
             lines = result.stdout.strip().split("\n")
             devices = [line for line in lines if line.strip()]
         else:  # IOS
-            ios_devices = list_ios_devices()
-            devices = [d.device_id for d in ios_devices]
+            # ios_devices = list_ios_devices()
+            # devices = [d.device_id for d in ios_devices]
+            # TODO IOS
+            pass
 
         if not devices:
             print("❌ FAILED")
@@ -232,32 +229,8 @@ def check_system_requirements(
         print("✅ OK (using native input)")
     else:  # IOS
         # Check WebDriverAgent
-        print(f"3. Checking WebDriverAgent ({wda_url})...", end=" ")
-        try:
-            conn = XCTestConnection(wda_url=wda_url)
-
-            if conn.is_wda_ready():
-                print("✅ OK")
-                # Get WDA status for additional info
-                status = conn.get_wda_status()
-                if status:
-                    session_id = status.get("sessionId", "N/A")
-                    print(f"   Session ID: {session_id}")
-            else:
-                print("❌ FAILED")
-                print("   Error: WebDriverAgent is not running or not accessible.")
-                print("   Solution:")
-                print("     1. Run WebDriverAgent on your iOS device via Xcode")
-                print("     2. For USB: Set up port forwarding: iproxy 8100 8100")
-                print(
-                    "     3. For WiFi: Use device IP, e.g., --wda-url http://192.168.1.100:8100"
-                )
-                print("     4. Verify in browser: open http://localhost:8100/status")
-                all_passed = False
-        except Exception as e:
-            print("❌ FAILED")
-            print(f"   Error: {e}")
-            all_passed = False
+        # TODO IOS
+        pass
 
     print("-" * 50)
 
@@ -524,81 +497,6 @@ Examples:
     return parser.parse_args()
 
 
-def handle_ios_device_commands(args) -> bool:
-    """
-    Handle iOS device-related commands.
-
-    Returns:
-        True if a device command was handled (should exit), False otherwise.
-    """
-    conn = XCTestConnection(wda_url=args.wda_url)
-
-    # Handle --list-devices
-    if args.list_devices:
-        devices = list_ios_devices()
-        if not devices:
-            print("No iOS devices connected.")
-            print("\nTroubleshooting:")
-            print("  1. Connect device via USB")
-            print("  2. Unlock device and trust this computer")
-            print("  3. Run: idevice_id -l")
-        else:
-            print("Connected iOS devices:")
-            print("-" * 70)
-            for device in devices:
-                conn_type = device.connection_type.value
-                model_info = f"{device.model}" if device.model else "Unknown"
-                ios_info = f"iOS {device.ios_version}" if device.ios_version else ""
-                name_info = device.device_name or "Unnamed"
-
-                print(f"  ✓ {name_info}")
-                print(f"    UUID: {device.device_id}")
-                print(f"    Model: {model_info}")
-                print(f"    OS: {ios_info}")
-                print(f"    Connection: {conn_type}")
-                print("-" * 70)
-        return True
-
-    # Handle --pair
-    if args.pair:
-        print("Pairing with iOS device...")
-        success, message = conn.pair_device(args.device_id)
-        print(f"{'✓' if success else '✗'} {message}")
-        return True
-
-    # Handle --wda-status
-    if args.wda_status:
-        print(f"Checking WebDriverAgent status at {args.wda_url}...")
-        print("-" * 50)
-
-        if conn.is_wda_ready():
-            print("✓ WebDriverAgent is running")
-
-            status = conn.get_wda_status()
-            if status:
-                print(f"\nStatus details:")
-                value = status.get("value", {})
-                print(f"  Session ID: {status.get('sessionId', 'N/A')}")
-                print(f"  Build: {value.get('build', {}).get('time', 'N/A')}")
-
-                current_app = value.get("currentApp", {})
-                if current_app:
-                    print(f"\nCurrent App:")
-                    print(f"  Bundle ID: {current_app.get('bundleId', 'N/A')}")
-                    print(f"  Process ID: {current_app.get('pid', 'N/A')}")
-        else:
-            print("✗ WebDriverAgent is not running")
-            print("\nPlease start WebDriverAgent on your iOS device:")
-            print("  1. Open WebDriverAgent.xcodeproj in Xcode")
-            print("  2. Select your device")
-            print("  3. Run WebDriverAgentRunner (Product > Test or Cmd+U)")
-            print(f"  4. For USB: Run port forwarding: iproxy 8100 8100")
-
-        return True
-
-    return False
-
-
 def handle_device_commands(args) -> bool:
     """
     Handle device-related commands.
@@ -614,7 +512,8 @@ def handle_device_commands(args) -> bool:
 
     # Handle iOS-specific commands
     if device_type == DeviceType.IOS:
-        return handle_ios_device_commands(args)
+        # TODO IOS
+        pass 
 
     device_factory = get_device_factory()
     ConnectionClass = device_factory.get_connection_class()
@@ -699,9 +598,8 @@ def main():
 
     # Enable HDC verbose mode if using HDC
     if device_type == DeviceType.HDC:
-        from phone_agent.hdc import set_hdc_verbose
-
-        set_hdc_verbose(True)
+        # TODO HDC
+        pass
 
     # Handle --list-apps (no system check needed)
     if args.list_apps:
@@ -753,19 +651,8 @@ def main():
     )
 
     if device_type == DeviceType.IOS:
-        # Create iOS agent
-        agent_config = IOSAgentConfig(
-            max_steps=args.max_steps,
-            wda_url=args.wda_url,
-            device_id=args.device_id,
-            verbose=not args.quiet,
-            lang=args.lang,
-        )
-
-        agent = IOSPhoneAgent(
-            model_config=model_config,
-            agent_config=agent_config,
-        )
+        # TODO IOS
+        pass
     else:
         # Create Android/HarmonyOS agent
         agent_config = AgentConfig(
@@ -799,14 +686,8 @@ def main():
 
     # Show device info
     if device_type == DeviceType.IOS:
-        devices = list_ios_devices()
-        if agent_config.device_id:
-            print(f"Device: {agent_config.device_id}")
-        elif devices:
-            device = devices[0]
-            print(f"Device: {device.device_name or device.device_id[:16]}")
-            if device.model and device.ios_version:
-                print(f"        {device.model}, iOS {device.ios_version}")
+        # TODO IOS
+        pass
     else:
         device_factory = get_device_factory()
         devices = device_factory.list_devices()

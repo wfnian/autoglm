@@ -69,9 +69,10 @@ def get_screenshot(device_id: str | None = None, timeout: int = 10) -> Screensho
         img = Image.open(temp_path)
         width, height = img.size
 
-        buffered = BytesIO()
-        img.save(buffered, format="PNG")
-        base64_data = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        # buffered = BytesIO()
+        # img.save(buffered, format="PNG")
+        # base64_data = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        base64_data, _, _ = compress_for_llm_best(img)
 
         # Cleanup
         os.remove(temp_path)
@@ -173,3 +174,29 @@ def _create_fallback_screenshot(is_sensitive: bool) -> Screenshot:
         height=default_height,
         is_sensitive=is_sensitive,
     )
+
+def compress_for_llm_best(img: Image.Image) -> tuple[str, int, str]:
+    """
+    压缩图片并选择最小的无损格式进行返回。
+    """
+
+    results = []
+
+    for fmt in ("WEBP", "PNG"):
+        buffer = BytesIO()
+
+        if fmt == "WEBP":
+            img.save(buffer, format="WEBP", lossless=True, method=6)
+        else:
+            img.save(buffer, format="PNG", optimize=True, compress_level=9)
+
+        data = buffer.getvalue()
+        results.append((
+            base64.b64encode(data).decode("utf-8"),
+            len(data),
+            fmt
+        ))
+    result = list(map(lambda x: x[1:], results))
+    print(f"\033[32;93m{result}\033[0m")  # [[2, 3], [5, 6]]
+    # 选择体积最小的
+    return min(results, key=lambda x: x[1])
