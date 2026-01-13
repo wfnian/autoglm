@@ -38,6 +38,9 @@ class ModelConfig:
     frequency_penalty: float = 0.2
     extra_body: dict[str, Any] = field(default_factory=dict)
     lang: str = "cn"  # Language for UI messages: 'cn' or 'en'
+    corr_base_url: str = "http://localhost:8000/v1"
+    corr_api_key: str = "EMPTY"
+    corr_model_name: str = "deepseek-chat"
 
 
 @dataclass
@@ -68,6 +71,7 @@ class ModelClient:
         # - async client is used by SSE streaming paths to avoid blocking the event loop
         self.client = OpenAI(base_url=self.config.base_url, api_key=self.config.api_key)
         self.async_client = AsyncOpenAI(base_url=self.config.base_url, api_key=self.config.api_key)
+        self.async_corr_client = AsyncOpenAI(base_url=self.config.corr_base_url, api_key=self.config.corr_api_key)
 
     def request(self, messages: list[dict[str, Any]]) -> ModelResponse:
         """
@@ -282,6 +286,14 @@ class ModelClient:
                         yield {"flag": "text", "content": char}
                     buffer = ""
 
+        # If the stream ends while we're still in the thinking phase, we may
+        # still have remaining content in `buffer` (e.g. the last few chars or
+        # a partial marker prefix). Flush it to avoid losing characters.
+        if (not in_action_phase) and buffer:
+            for char in buffer:
+                yield {"flag": "text", "content": char}
+            buffer = ""
+
         # Calculate total time
         total_time = time.time() - start_time
 
@@ -357,8 +369,8 @@ class ModelClient:
             for marker in action_markers:
                 if marker in buffer:
                     thinking_part = buffer.split(marker, 1)[0]
-                    for char in thinking_part:
-                        yield {"flag": "text", "content": char}
+                    print(thinking_part, end="", flush=True)
+                    yield {"flag": 101, "content": thinking_part}
 
                     if time_to_thinking_end is None:
                         time_to_thinking_end = time.time() - start_time
@@ -381,9 +393,19 @@ class ModelClient:
                     break
 
             if not is_potential_marker:
-                for char in buffer:
-                    yield {"flag": "text", "content": char}
+                yield {"flag": 101, "content": buffer}
                 buffer = ""
+
+        # If the async stream ends while we're still in the thinking phase,
+        # flush any remaining buffered content. Without this, the tail of the
+        # thinking text could be lost.
+        if (not in_action_phase) and buffer:
+            for char in buffer:
+                yield {"flag": 101, "content": char}
+            buffer = ""
+
+            if time_to_thinking_end is None:
+                time_to_thinking_end = time.time() - start_time
 
         total_time = time.time() - start_time
         thinking, action = self._parse_response(raw_content)

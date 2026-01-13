@@ -4,6 +4,7 @@ from phone_agent.config.apps import APP_PACKAGES
 from phone_agent.config.i18n import get_message, get_messages
 from phone_agent.config.prompts_en import SYSTEM_PROMPT as SYSTEM_PROMPT_EN
 from phone_agent.config.prompts_zh import SYSTEM_PROMPT as SYSTEM_PROMPT_ZH
+from phone_agent.config.prompts_tts_corr import SYSTEM_PROMPT_TTS_CORR
 from phone_agent.config.timing import (
     TIMING_CONFIG,
     ActionTimingConfig,
@@ -14,6 +15,10 @@ from phone_agent.config.timing import (
     update_timing_config,
 )
 
+def get_correct_prompt() -> str:
+    """Get system prompt for TTS correction."""
+
+    return SYSTEM_PROMPT_TTS_CORR
 
 def get_system_prompt(lang: str = "cn") -> str:
     """

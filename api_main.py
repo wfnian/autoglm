@@ -36,6 +36,9 @@ model_api_config = {
     "base_url": os.getenv("MODEL_API_BASE_URL", "http://localhost:8000/v1"),
     "api_key": os.getenv("MODEL_API_KEY", "EMPTY"),
     "model_name": os.getenv("MODEL_NAME", "autoglm-phone"),
+    "corr_base_url": os.getenv("CORR_MODEL_API_BASE_URL", "http://localhost:8000/v1"),
+    "corr_api_key": os.getenv("CORR_MODEL_API_KEY", "EMPTY"),
+    "corr_model_name": os.getenv("CORR_MODEL_NAME", "deepseek-chat"),
 }
 
 
@@ -53,132 +56,6 @@ class AgentCompletionRequest(BaseModel):
     lang: Optional[str] = "cn"
     max_steps: Optional[int] = 100
 
-
-@dataclass
-class ModelConfig:
-    """Configuration for the AI model."""
-
-    base_url: str = "http://localhost:8000/v1"
-    api_key: str = "EMPTY"
-    model_name: str = "autoglm-phone-9b"
-    max_tokens: int = 3000
-    temperature: float = 0.0
-    top_p: float = 0.85
-    frequency_penalty: float = 0.2
-    extra_body: dict[str, Any] = field(default_factory=dict)
-    lang: str = "cn"  # Language for UI messages: 'cn' or 'en'
-
-
-@dataclass
-class ModelResponse:
-    """Response from the AI model."""
-
-    thinking: str
-    action: str
-    raw_content: str
-    # Performance metrics
-    time_to_first_token: float | None = None  # Time to first token (seconds)
-    time_to_thinking_end: float | None = None  # Time to thinking end (seconds)
-    total_time: float | None = None  # Total inference time (seconds)
-
-
-class MessageBuilder:
-    """Helper class for building conversation messages."""
-
-    @staticmethod
-    def create_system_message(content: str) -> dict[str, Any]:
-        """Create a system message."""
-        return {"role": "system", "content": content}
-
-    @staticmethod
-    def create_user_message(text: str, image_base64: str | None = None) -> dict[str, Any]:
-        """
-        Create a user message with optional image.
-
-        Args:
-            text: Text content.
-            image_base64: Optional base64-encoded image.
-
-        Returns:
-            Message dictionary.
-        """
-        content = []
-
-        if image_base64:
-            content.append(
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/png;base64,{image_base64}"},
-                }
-            )
-
-        content.append({"type": "text", "text": text})
-
-        return {"role": "user", "content": content}
-
-    @staticmethod
-    def create_user_message_by_xml(text: str, xml_content: str | None = None) -> dict[str, Any]:
-        """
-        Create a user message with optional image.
-
-        Args:
-            text: Text content.
-            xml_content: Optional xml_content.
-
-        Returns:
-            Message dictionary.
-        """
-        content = []
-
-        res = text
-
-        if xml_content:
-            # content.append(
-            #     {
-            #         "type": "text",
-            #         "text": {"ui_xml": xml_content},
-            #     }
-            # )
-            res = f"{text}\n\n<ui_xml>\n{xml_content}\n</ui_xml>"
-
-        content.append({"type": "text", "text": res})
-
-        return {"role": "user", "content": content}
-
-    @staticmethod
-    def create_assistant_message(content: str) -> dict[str, Any]:
-        """Create an assistant message."""
-        return {"role": "assistant", "content": content}
-
-    @staticmethod
-    def remove_images_from_message(message: dict[str, Any]) -> dict[str, Any]:
-        """
-        Remove image content from a message to save context space.
-
-        Args:
-            message: Message dictionary.
-
-        Returns:
-            Message with images removed.
-        """
-        if isinstance(message.get("content"), list):
-            message["content"] = [item for item in message["content"] if item.get("type") == "text"]
-        return message
-
-    @staticmethod
-    def build_screen_info(current_app: str, **extra_info) -> str:
-        """
-        Build screen info string for the model.
-
-        Args:
-            current_app: Current app name.
-            **extra_info: Additional info to include.
-
-        Returns:
-            JSON string with screen info.
-        """
-        info = {"current_app": current_app, **extra_info}
-        return json.dumps(info, ensure_ascii=False)
 
 
 def check_system_requirements(device_type: DeviceType = DeviceType.ADB, wda_url: str = "http://localhost:8100") -> bool:
@@ -468,7 +345,7 @@ def get_favicon():
     return {"message": "favicon.ico"}
 
 
-@app.post("/v1/phoneagent/completions/stream")
+@app.post("/v1/phoneagent/completions")
 async def agent_completions_stream(request: AgentCompletionRequest):
     """
     Stream agent completions with real-time thinking output.
@@ -478,13 +355,18 @@ async def agent_completions_stream(request: AgentCompletionRequest):
     data: {"flag": "text", "content": "2"}
     data: {"flag": "finished", "content": "Task completed"}
     """
-    if not request.device_id:
-        device_factory = get_device_factory()
-        devices = device_factory.list_devices()
+    # Resolve device
+    print(f"\033[95m ================= {request} ================= \033[0m")
+    device_factory = get_device_factory()
+    devices = device_factory.list_devices()
+    if not devices and not request.device_id:
+        raise HTTPException(status_code=400, detail="No device connected and no device_id provided")
+
+    device_id = request.device_id or devices[0].device_id
     
     agent_config = AgentConfig(
         max_steps=request.max_steps,
-        device_id=devices[0].device_id,
+        device_id=device_id,
         lang=request.lang or "cn",
         verbose=False,  # Disable verbose output for streaming
     )
@@ -492,6 +374,10 @@ async def agent_completions_stream(request: AgentCompletionRequest):
         base_url=model_api_config["base_url"],
         model_name=model_api_config["model_name"],
         api_key=model_api_config["api_key"],
+        temperature=request.temperature if request.temperature is not None else 0.0,
+        corr_base_url=model_api_config["corr_base_url"],
+        corr_api_key=model_api_config["corr_api_key"],
+        corr_model_name=model_api_config["corr_model_name"],
     )
     agent = PhoneAgent(
         model_config=model_config,
@@ -512,11 +398,11 @@ async def agent_completions_stream(request: AgentCompletionRequest):
                 # Yield control so Starlette can flush the chunk immediately
                 await asyncio.sleep(0)
 
-                if chunk.get("flag") == "finished":
+                if chunk.get("flag") == 103:  # finished
                     return
                     
             # Fallback (should not reach here because run_stream_async emits finished)
-            yield f'data: {{"flag": "finished", "content": "Max steps reached"}}\n\n'
+            yield f'data: {{"flag": 103, "content": "Max steps reached"}}\n\n'
                     
         except Exception as e:
             yield f'data: {{"flag": "error", "content": "Stream error: {str(e)}"}}\n\n'

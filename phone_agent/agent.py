@@ -5,9 +5,11 @@ import traceback
 from dataclasses import dataclass
 from typing import Any, Callable
 
+import asyncio
+
 from phone_agent.actions import ActionHandler
 from phone_agent.actions.handler import do, finish, parse_action
-from phone_agent.config import get_messages, get_system_prompt
+from phone_agent.config import get_messages, get_system_prompt, get_correct_prompt
 from phone_agent.device_factory import get_device_factory
 from phone_agent.model import ModelClient, ModelConfig
 from phone_agent.model.client import MessageBuilder
@@ -149,7 +151,9 @@ class PhoneAgent:
         self._context = []
         self._step_count = 0
 
-        async for chunk in self._execute_step_stream_async(task, is_first=True):
+        corr_task = await self._correct_asr_text(task)
+
+        async for chunk in self._execute_step_stream_async(corr_task, is_first=True):
             yield chunk
             if chunk.get("flag") == "finished":
                 return
@@ -386,6 +390,35 @@ class PhoneAgent:
             yield {"flag": "finished", "content": result.message or action.get("message", "Task completed")}
             return  # IMPORTANT: Return after sending finished signal
 
+    async def _correct_asr_text(self, asr_text: str) -> str:
+        """
+        Use the model to correct ASR text based on predefined correction principles.
+
+        Args:
+            asr_text: The original ASR text to be corrected.
+
+        Returns:
+            Corrected text.
+        """
+        self._corr_context = []
+        self._corr_context.append(
+                MessageBuilder.create_system_message(get_correct_prompt())
+            ) 
+        text_content = f"\n\n以下是语音转文本的待纠正输入：'{asr_text}'"
+        self._corr_context.append(
+            MessageBuilder.create_user_message(
+                text=text_content
+            )
+        )
+        self._model_client = ModelClient(self.model_config)
+        response = await self._model_client.async_corr_client.chat.completions.create(
+            messages=self._corr_context,
+            model=self.model_config.corr_model_name,
+            stream=False,
+        )
+        print(f"\033[91m Corrected ASR Response: {response} \033[0m")
+        
+
     async def _execute_step_stream_async(
         self, user_prompt: str | None = None, is_first: bool = False
     ):
@@ -395,6 +428,8 @@ class PhoneAgent:
         so FastAPI can flush SSE chunks in real-time.
         """
         self._step_count += 1
+
+        print(f"\033[94m ======= Step {'execute_step'} ======= \033[0m")
 
         device_factory = get_device_factory()
         screenshot = device_factory.get_screenshot(self.agent_config.device_id)
@@ -421,23 +456,32 @@ class PhoneAgent:
             )
 
         # Get model streaming response (async)
+        print(f"\033[94m ======= Step {'model_response'} ======= \033[0m")
         try:
             response = None
             async for chunk in self.model_client.request_stream_async(self._context):
+                print(f"\033[94m ======= Chunk: {chunk} ======= \033[0m")
                 if chunk.get("flag") == "response":
+                    print(f"\033[96m;3m ======= Step {chunk} ======= \033[0m")
                     response = chunk["content"]
                 else:
                     yield chunk
 
             if response is None:
+                print(f"\033[94m ======= Step {'error_no_response'} ======= \033[0m")
                 yield {"flag": "error", "content": "Failed to get model response"}
                 return
+        except asyncio.CancelledError:
+            print(f"\033[94m ======= Step {'cancelled'} ======= \033[0m")
+        except GeneratorExit:
+            print(f"\033[94m ======= Step {'generator_exit'} ======= \033[0m")
         except Exception as e:
+            print(f"\033[94m ======= Step {'error'} ======= \033[0m")
             if self.agent_config.verbose:
                 traceback.print_exc()
             yield {"flag": "error", "content": f"Model error: {e}"}
             return
-
+        print(f"\033[94m ======= Step {'execute_action'} ======= \033[0m")
         # Parse action
         try:
             action = parse_action(response.action)
@@ -464,10 +508,14 @@ class PhoneAgent:
         finished = action.get("_metadata") == "finish" or result.should_finish
         if finished:
             yield {
-                "flag": "finished",
+                "flag": 103,
                 "content": result.message or action.get("message", "Task completed"),
             }
             return
+
+        # If not finished, provide a lightweight step marker so clients can
+        # distinguish between multi-step cycles (useful for UIs/logging).
+        yield {"flag": 102, "content": {"step": self._step_count, "finished": False}}
 
     @property
     def context(self) -> list[dict[str, Any]]:
