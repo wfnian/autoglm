@@ -4,6 +4,8 @@ import json
 import traceback
 from dataclasses import dataclass
 from typing import Any, Callable
+import os
+import xml.etree.ElementTree as ET
 
 import asyncio
 
@@ -193,9 +195,7 @@ class PhoneAgent:
         self._context = []
         self._step_count = 0
 
-    def _execute_step(
-        self, user_prompt: str | None = None, is_first: bool = False
-    ) -> StepResult:
+    def _execute_step(self, user_prompt: str | None = None, is_first: bool = False) -> StepResult:
         """Execute a single step of the agent loop."""
         self._step_count += 1
 
@@ -205,7 +205,7 @@ class PhoneAgent:
         # ui_xml = device_factory.get_ui_xml(self.agent_config.device_id)
         # print(f"UI XML: {ui_xml}")
         current_app = device_factory.get_current_app(self.agent_config.device_id)
-
+        print(f"UI xml: {ui_xml}")
         # Build messages
         if is_first:
             self._context.append(MessageBuilder.create_system_message(self.agent_config.system_prompt))
@@ -283,7 +283,8 @@ class PhoneAgent:
         # Add assistant response to context
         self._context.append(
             MessageBuilder.create_assistant_message(
-                f"<think>{response.thinking}</think><answer>{response.action}</answer>"
+                # f"<think>{response.thinking}</think><answer>{response.action}</answer>"
+                f"{response.thinking}{response.action}"
             )
         )
 
