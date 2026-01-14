@@ -151,8 +151,11 @@ class PhoneAgent:
         self._context = []
         self._step_count = 0
 
-        corr_task = await self._correct_asr_text(task)
-
+        try:
+            corr_task = await self._correct_asr_text(task)
+        except Exception as e:
+            corr_task = task
+            print(f"\033[91m ASR Correction Error: {e} \033[0m")
         async for chunk in self._execute_step_stream_async(corr_task, is_first=True):
             yield chunk
             if chunk.get("flag") == "finished":
@@ -416,7 +419,8 @@ class PhoneAgent:
             model=self.model_config.corr_model_name,
             stream=False,
         )
-        print(f"\033[91m Corrected ASR Response: {response} \033[0m")
+        print(f"\033[96m Corrected ASR Response: {response.choices[0].message.content} \033[0m")
+        return response.choices[0].message.content
         
 
     async def _execute_step_stream_async(
